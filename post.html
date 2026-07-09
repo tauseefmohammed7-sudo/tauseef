@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automating User Offboarding with PowerShell and Microsoft Graph — Runbook</title>
+<meta name="description" content="A production-ready script and the reasoning behind every step of automated user offboarding.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="wrap">
+    <a href="index.html" class="brand">
+      <span class="brand-prompt">~/</span>runbook<span class="cursor"></span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html">Posts</a>
+      <a href="index.html#categories">Categories</a>
+      <a href="about.html">About</a>
+    </div>
+    <button class="nav-toggle" aria-label="Toggle menu"><span></span></button>
+  </div>
+</nav>
+
+<header class="post-header">
+  <div class="wrap">
+    <div class="breadcrumb">
+      <span class="prompt">$</span> cat <a href="index.html">~/posts</a>/automating-user-offboarding.md
+    </div>
+    <span class="cat-tag" style="color:#B87F2A">Automation</span>
+    <h1 style="margin-top:14px;">Automating User Offboarding with PowerShell and Microsoft Graph</h1>
+    <div class="byline">
+      <div class="avatar">TM</div>
+      <span>Tauseef Mohammed</span>
+      <span class="sep">/</span>
+      <span class="meta-mono">Jul 3, 2026 · 8 min read</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="post-layout">
+
+    <article class="post-body">
+
+      <p>Every offboarding checklist I've inherited looked the same on paper: disable the account, revoke sessions, transfer files, remove group memberships. In practice, the checklist was a Word document nobody updated, run inconsistently by whoever was on duty that week. The gaps it left — a stale Teams membership here, an orphaned calendar there — are exactly the kind of thing that turns up in a security audit six months later.</p>
+
+      <p>This post walks through the script we now run for every offboarding, why it's structured the way it is, and the edge cases that took us two incidents to learn about.</p>
+
+      <h2 id="why-manual-offboarding-fails">Why manual offboarding fails</h2>
+      <p>Manual processes fail quietly. Nobody notices a missed step until it matters — a departed contractor's OAuth token still working, a shared mailbox still forwarding to a personal address. The fix isn't a better checklist; it's removing the human from the repeatable parts entirely and reserving judgment calls for cases that genuinely need them.</p>
+
+      <div class="callout warn">
+        <strong>Where this bit us</strong>
+        A former employee's calendar delegation outlived their account by three weeks because "remove delegations" was step 11 of 14, and step 11 was the one that got skipped under pressure.
+      </div>
+
+      <h2 id="the-script">The offboarding script</h2>
+      <p>The script below handles the Microsoft 365 side end to end: disabling sign-in, revoking active sessions, converting the mailbox to shared, and stripping group memberships. It's idempotent — safe to re-run if a step fails partway through.</p>
+
+<pre class="code-block" data-lang="powershell"><span class="c1"># Connect once, reuse the session for every step</span>
+Connect-MgGraph -Scopes <span class="s1">"User.ReadWrite.All"</span>, <span class="s1">"Group.ReadWrite.All"</span>
+
+<span class="k1">function</span> Invoke-Offboarding {
+    <span class="k1">param</span>(
+        [Parameter(Mandatory)][string]<span class="s1">$UserPrincipalName</span>,
+        [Parameter(Mandatory)][string]<span class="s1">$ManagerEmail</span>
+    )
+
+    <span class="c1"># 1. Block sign-in immediately</span>
+    Update-MgUser -UserId <span class="s1">$UserPrincipalName</span> -AccountEnabled:<span class="s1">$false</span>
+
+    <span class="c1"># 2. Revoke all active sessions and refresh tokens</span>
+    Revoke-MgUserSignInSession -UserId <span class="s1">$UserPrincipalName</span>
+
+    <span class="c1"># 3. Strip group and Teams memberships</span>
+    Get-MgUserMemberOf -UserId <span class="s1">$UserPrincipalName</span> | ForEach-Object {
+        Remove-MgGroupMemberByRef -GroupId <span class="s1">$_.Id</span> -DirectoryObjectId <span class="s1">$UserPrincipalName</span>
+    }
+
+    <span class="c1"># 4. Grant the manager full mailbox access, then convert to shared</span>
+    Set-Mailbox -Identity <span class="s1">$UserPrincipalName</span> -Type Shared
+    Add-MailboxPermission -Identity <span class="s1">$UserPrincipalName</span> -User <span class="s1">$ManagerEmail</span> -AccessRights FullAccess
+}
+</pre>
+
+      <p>Each step is written to be independently safe to retry — disabling an already-disabled account or revoking sessions twice doesn't throw, it just no-ops. That matters more than it sounds like it should, because offboarding rarely happens in one clean pass.</p>
+
+      <h2 id="handling-calendar-and-delegates">Handling calendar delegates</h2>
+      <p>This was the gap that caused the incident above. Delegated calendar access doesn't get removed by disabling the account or even converting the mailbox — it has to be stripped explicitly.</p>
+
+<pre class="code-block" data-lang="powershell"><span class="c1"># Remove calendar delegates before handing the mailbox off</span>
+Get-MailboxFolderPermission <span class="s1">"$UserPrincipalName:\Calendar"</span> |
+    Where-Object { <span class="s1">$_.User</span> -notlike <span class="s1">"Default"</span> } |
+    ForEach-Object {
+        Remove-MailboxFolderPermission <span class="s1">"$UserPrincipalName:\Calendar"</span> -User <span class="s1">$_.User</span> -Confirm:<span class="s1">$false</span>
+    }
+</pre>
+
+      <div class="callout">
+        <strong>Worth knowing</strong>
+        If the departing user organized recurring meetings, consider whether ownership needs to transfer rather than simply removing delegates — otherwise those meetings can be left without an active organizer.
+      </div>
+
+      <h2 id="what-we-still-do-by-hand">What we still do by hand</h2>
+      <p>Not everything belongs in the script. We intentionally keep three things manual:</p>
+      <ul>
+        <li><strong>Data retention decisions</strong> — what gets archived versus deleted depends on role and legal hold status, and that's a judgment call.</li>
+        <li><strong>Third-party SaaS access</strong> — anything outside Microsoft 365 gets a manual pass, since coverage varies too much to automate safely.</li>
+        <li><strong>Final sign-off</strong> — a human confirms the run completed and reviews the audit log before the ticket closes.</li>
+      </ul>
+
+      <h2 id="running-it-safely">Running it safely</h2>
+      <p>Before this runs against a real account, we test it against a disposable test tenant user and check the audit log for anything unexpected. The <code class="inline">-WhatIf</code> pattern works for most of these cmdlets and is worth wiring in if you're adapting this for your own environment.</p>
+
+      <p>The full version we run in production also posts a summary to a Slack channel and opens a ticket automatically — happy to share that wrapper if there's interest.</p>
+
+    </article>
+
+    <aside class="toc">
+      <div class="toc-label">On this page</div>
+      <ul>
+        <li><a href="#why-manual-offboarding-fails">Why manual offboarding fails</a></li>
+        <li><a href="#the-script">The offboarding script</a></li>
+        <li><a href="#handling-calendar-and-delegates">Handling calendar delegates</a></li>
+        <li><a href="#what-we-still-do-by-hand">What we still do by hand</a></li>
+        <li><a href="#running-it-safely">Running it safely</a></li>
+      </ul>
+      <div class="toc-card">
+        <strong>Stack used here</strong>
+        PowerShell 7 · Microsoft Graph SDK · Exchange Online
+      </div>
+    </aside>
+
+  </div>
+
+  <div class="author-card">
+    <div class="avatar-lg">TM</div>
+    <div>
+      <h4>Tauseef Mohammed</h4>
+      <p>Solution Architect specializing in cloud infrastructure, identity, and enterprise automation. Writes about the architecture decisions behind real production systems.</p>
+    </div>
+  </div>
+
+  <div class="related-title">Related posts</div>
+  <section class="related-grid">
+    <a class="post-card" href="#" data-cat="security" style="--cat-color:#B5533C">
+      <span class="cat-tag">Security</span>
+      <h3>Rotating Service Account Credentials Without Downtime</h3>
+      <div class="post-meta"><span>May 14, 2026</span><span>·</span><span>6 min</span></div>
+    </a>
+    <a class="post-card" href="#" data-cat="cloud" style="--cat-color:#1B7A72">
+      <span class="cat-tag">Cloud</span>
+      <h3>Why We Moved Our Runbooks Out of Confluence</h3>
+      <div class="post-meta"><span>Jun 10, 2026</span><span>·</span><span>5 min</span></div>
+    </a>
+    <a class="post-card" href="#" data-cat="automation" style="--cat-color:#E8A33D">
+      <span class="cat-tag">Automation</span>
+      <h3>Turning Slack Incidents Into Structured Data</h3>
+      <div class="post-meta"><span>Apr 30, 2026</span><span>·</span><span>4 min</span></div>
+    </a>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-mono">© 2026 · Runbook · built by hand, not by CMS</div>
+    <div class="footer-links">
+      <a href="about.html">About</a>
+      <a href="#">RSS</a>
+      <a href="#">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
