@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runbook — notes on infrastructure &amp; automation</title>
+<meta name="description" content="A running log of the systems, scripts, and postmortems behind keeping infrastructure upright.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="wrap">
+    <a href="index.html" class="brand">
+      <span class="brand-prompt">~/</span>runbook<span class="cursor"></span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html" class="active">Posts</a>
+      <a href="index.html#categories">Categories</a>
+      <a href="about.html">About</a>
+    </div>
+    <button class="nav-toggle" aria-label="Toggle menu"><span></span></button>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-kicker">FIELD NOTES FROM PRODUCTION</div>
+    <h1>Keeping systems <span class="hl">upright</span>, one runbook at a time.</h1>
+    <p class="lede">Automation, cloud infrastructure, and the postmortems that taught me the most — written the way I'd explain it to the on-call engineer who comes after me.</p>
+    <div class="hero-terminal">
+      <span class="prompt">$</span> tail -f /var/log/latest-lessons.log<span class="cur"></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="categories">
+
+  <div class="chip-row">
+    <button class="chip active" data-cat="all">All posts</button>
+    <button class="chip" data-cat="automation">Automation</button>
+    <button class="chip" data-cat="cloud">Cloud</button>
+    <button class="chip" data-cat="security">Security</button>
+    <button class="chip" data-cat="postmortems">Postmortems</button>
+    <button class="chip" data-cat="tooling">Tooling</button>
+  </div>
+
+  <section class="post-grid">
+
+    <a class="post-card featured" href="post.html" data-cat="automation" style="--cat-color:#E8A33D">
+      <span class="cat-tag">Automation</span>
+      <h3>Automating User Offboarding with PowerShell and Microsoft Graph</h3>
+      <p>Manual offboarding checklists don't scale, and the gaps they leave behind are exactly the kind that show up in a security audit. Here's the script and the reasoning behind every step.</p>
+      <div class="post-meta">
+        <span>Jul 3, 2026</span>
+        <span>·</span>
+        <span>8 min read</span>
+      </div>
+    </a>
+
+    <a class="post-card" href="#" data-cat="postmortems" style="--cat-color:#B5533C">
+      <span class="cat-tag">Postmortem</span>
+      <h3>The Cron Job That Took Down Checkout</h3>
+      <p>A 3am page, a silent failure mode, and the one log line we ignored for six months.</p>
+      <div class="post-meta"><span>Jun 21, 2026</span><span>·</span><span>6 min read</span></div>
+    </a>
+
+    <a class="post-card" href="#" data-cat="cloud" style="--cat-color:#1B7A72">
+      <span class="cat-tag">Cloud</span>
+      <h3>Why We Moved Our Runbooks Out of Confluence</h3>
+      <p>Documentation that isn't executable is documentation that goes stale. What replaced it, and what we lost along the way.</p>
+      <div class="post-meta"><span>Jun 10, 2026</span><span>·</span><span>5 min read</span></div>
+    </a>
+
+    <a class="post-card" href="#" data-cat="tooling" style="--cat-color:#565C64">
+      <span class="cat-tag">Tooling</span>
+      <h3>A Field Guide to Kubernetes OOMKilled Errors</h3>
+      <p>Six real causes we've hit in production, ranked by how long they took us to diagnose.</p>
+      <div class="post-meta"><span>May 29, 2026</span><span>·</span><span>7 min read</span></div>
+    </a>
+
+    <a class="post-card" href="#" data-cat="security" style="--cat-color:#B5533C">
+      <span class="cat-tag">Security</span>
+      <h3>Rotating Service Account Credentials Without Downtime</h3>
+      <p>A dual-secret pattern that lets you rotate in production without a maintenance window.</p>
+      <div class="post-meta"><span>May 14, 2026</span><span>·</span><span>6 min read</span></div>
+    </a>
+
+    <a class="post-card" href="#" data-cat="automation" style="--cat-color:#E8A33D">
+      <span class="cat-tag">Automation</span>
+      <h3>Turning Slack Incidents Into Structured Data</h3>
+      <p>How we parse incident channels into a dataset that actually informs the next quarter's roadmap.</p>
+      <div class="post-meta"><span>Apr 30, 2026</span><span>·</span><span>4 min read</span></div>
+    </a>
+
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-mono">© 2026 · Runbook · built by hand, not by CMS</div>
+    <div class="footer-links">
+      <a href="about.html">About</a>
+      <a href="#">RSS</a>
+      <a href="#">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
